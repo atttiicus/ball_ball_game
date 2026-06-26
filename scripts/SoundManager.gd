@@ -1,6 +1,5 @@
 ## 全局音效管理（autoload）
 ## 所有音效用程序化方式生成，无需外部音频文件
-class_name SoundManager
 extends Node
 
 var _eat_food_player: AudioStreamPlayer

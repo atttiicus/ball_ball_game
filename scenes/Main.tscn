@@ -11,4 +11,6 @@ script = ExtResource("1_main")
 
 [node name="BallContainer" type="Node2D" parent="."]
 
+[node name="EffectsContainer" type="Node2D" parent="."]
+
 [node name="WorldBorder" type="Node2D" parent="."]

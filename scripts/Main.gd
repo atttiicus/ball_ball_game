@@ -10,10 +10,11 @@ const NetworkedBallScene := preload("res://scenes/NetworkedBall.tscn")
 var background: Node2D
 var food_container: Node2D
 var ball_container: Node2D
+var effects_container: Node2D
 var world_border: Node2D
 var camera: GameCamera
-var player: Player
-var player2: Player2
+var player: Ball
+var player2: Ball
 var food_spawner: FoodSpawner
 var ai_spawner: AISpawner
 var hud: HUD
@@ -27,7 +28,9 @@ func _ready() -> void:
 	background = $Background
 	food_container = $FoodContainer
 	ball_container = $BallContainer
+	effects_container = $EffectsContainer
 	world_border = $WorldBorder
+	Ball.effects_node = effects_container
 
 	_build_world_border()
 	_setup_background()
@@ -41,7 +44,7 @@ func _physics_process(_delta: float) -> void:
 		return
 	var balls := ball_container.get_children()
 	for ball in balls:
-		if is_instance_valid(ball):
+		if is_instance_valid(ball) and ball is Ball:
 			(ball as Ball).check_ball_collisions(balls)
 	_peak_mass = maxf(_peak_mass, player.mass)
 
@@ -62,6 +65,8 @@ func _build_world_border() -> void:
 		rect.size = wall_data[1]
 		shape.shape = rect
 		body.position = wall_data[0]
+		body.collision_layer = 2
+		body.collision_mask = 1
 		body.add_child(shape)
 		world_border.add_child(body)
 
@@ -164,18 +169,19 @@ func _spawn_player(player_name: String = "Player", color: Color = Color(0.2, 0.6
 	player = PlayerScene.instantiate()
 	player.ball_name = player_name
 	player.ball_color = color
-	player.global_position = WORLD_SIZE / 2.0 + Vector2(-200, 0)
 	player.add_to_group("balls")
 	player.got_eaten.connect(_on_player_died)
 	ball_container.add_child(player)
+	# add_child 之后再设置 global_position，确保节点已在场景树中
+	player.global_position = WORLD_SIZE / 2.0 + Vector2(-200, 0)
 
 
 func _spawn_player2() -> void:
 	player2 = Player2Scene.instantiate()
-	player2.global_position = WORLD_SIZE / 2.0 + Vector2(200, 0)
 	player2.add_to_group("balls")
 	player2.got_eaten.connect(_on_player2_died)
 	ball_container.add_child(player2)
+	player2.global_position = WORLD_SIZE / 2.0 + Vector2(200, 0)
 
 
 func _setup_camera() -> void:
@@ -186,13 +192,15 @@ func _setup_camera() -> void:
 		camera.limit_right = int(WORLD_SIZE.x)
 		camera.limit_bottom = int(WORLD_SIZE.y)
 		add_child(camera)
+		camera.make_current()
 
 	camera.target = player
 	if _two_player and is_instance_valid(player2):
 		camera.targets = [player, player2]
 	else:
 		camera.targets = []
-	camera.global_position = player.global_position
+	if is_instance_valid(player):
+		camera.global_position = player.global_position
 
 
 func _setup_hud() -> void:

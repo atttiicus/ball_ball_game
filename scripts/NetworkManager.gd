@@ -1,6 +1,5 @@
 ## 单例：res://scripts/NetworkManager.gd
 ## 在 project.godot 中注册为 autoload: NetworkManager
-class_name NetworkManager
 extends Node
 
 signal player_connected(peer_id: int, info: Dictionary)

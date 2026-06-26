@@ -6,8 +6,11 @@ var joystick: TouchJoystick = null
 
 
 func _ready() -> void:
-	ball_color = Color(0.2, 0.6, 1.0)
-	ball_name = "Player"
+	# 只在未被外部赋值时才应用默认值
+	if ball_color == Color.WHITE:
+		ball_color = Color(0.2, 0.6, 1.0)
+	if ball_name.is_empty():
+		ball_name = "Player"
 	mass = PI * 20.0 * 20.0
 	super._ready()
 	got_eaten.connect(_on_got_eaten)

@@ -5,8 +5,10 @@ var is_dead: bool = false
 
 
 func _ready() -> void:
-	ball_color = Color(1.0, 0.45, 0.2)
-	ball_name = "Player2"
+	if ball_color == Color.WHITE:
+		ball_color = Color(1.0, 0.45, 0.2)
+	if ball_name.is_empty():
+		ball_name = "Player2"
 	mass = PI * 20.0 * 20.0
 	super._ready()
 	got_eaten.connect(_on_got_eaten)
