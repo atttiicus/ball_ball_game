@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://b0netball0001"]
+
+[ext_resource type="Script" path="res://scripts/NetworkedBall.gd" id="1_netball"]
+
+[node name="NetworkedBall" type="CharacterBody2D"]
+script = ExtResource("1_netball")
