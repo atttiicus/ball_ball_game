@@ -16,6 +16,9 @@ var name_label: Label
 # 特效容器，由 Main._ready() 赋值
 static var effects_node: Node2D = null
 
+# 出生保护：无敌期间不能被吃
+var is_invincible: bool = false
+
 const MIN_RADIUS := 15.0
 const MAX_RADIUS := 400.0
 const EAT_RATIO := 1.1
@@ -41,9 +44,18 @@ func _ready() -> void:
 	add_child(area)
 
 
+func _process(_delta: float) -> void:
+	if is_invincible:
+		queue_redraw()
+
+
 func _draw() -> void:
+	var c := ball_color
+	if is_invincible:
+		# 闪烁效果提示无敌状态
+		c.a = 0.35 if (int(Time.get_ticks_msec() / 150) % 2 == 0) else 0.85
 	# 主体
-	draw_circle(Vector2.ZERO, radius, ball_color)
+	draw_circle(Vector2.ZERO, radius, c)
 	# 高光
 	var highlight := ball_color.lightened(0.35)
 	highlight.a = 0.6
@@ -112,8 +124,8 @@ func check_ball_collisions(balls: Array) -> void:
 		if other == self or not is_instance_valid(other):
 			continue
 		var dist: float = global_position.distance_to(other.global_position)
-		# 球间无物理碰撞，当对方球心进入本球半径内即可吞噬
-		if dist < radius and can_eat(other):
+		# 球间无物理碰撞，当对方球心进入本球半径内即可吞噬；无敌期间不可被吃
+		if dist < radius and can_eat(other) and not other.is_invincible:
 			_eat_ball(other)
 
 

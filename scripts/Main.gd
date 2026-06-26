@@ -2,9 +2,10 @@ extends Node2D
 
 const WORLD_SIZE := Vector2(4000.0, 4000.0)
 const WALL_THICKNESS := 50.0
+const MAX_PLAYER_CELLS := 4
 
-const PlayerScene       := preload("res://scenes/Player.tscn")
-const Player2Scene      := preload("res://scenes/Player2.tscn")
+const PlayerScene        := preload("res://scenes/Player.tscn")
+const Player2Scene       := preload("res://scenes/Player2.tscn")
 const NetworkedBallScene := preload("res://scenes/NetworkedBall.tscn")
 
 var background: Node2D
@@ -13,8 +14,9 @@ var ball_container: Node2D
 var effects_container: Node2D
 var world_border: Node2D
 var camera: GameCamera
-var player: Ball
+var player: Ball          # 主细胞（用于 HUD / 排名）
 var player2: Ball
+var player_cells: Array = []  # 所有玩家细胞
 var food_spawner: FoodSpawner
 var ai_spawner: AISpawner
 var hud: HUD
@@ -39,14 +41,23 @@ func _ready() -> void:
 	_show_main_menu()
 
 
-func _physics_process(_delta: float) -> void:
+func _physics_process(delta: float) -> void:
 	if not is_instance_valid(player):
 		return
+
 	var balls := ball_container.get_children()
 	for ball in balls:
 		if is_instance_valid(ball) and ball is Ball:
 			(ball as Ball).check_ball_collisions(balls)
-	_peak_mass = maxf(_peak_mass, player.mass)
+
+	_check_player_merges()
+
+	# 统计所有细胞的总质量
+	var total := 0.0
+	for c in player_cells:
+		if is_instance_valid(c):
+			total += (c as Ball).mass
+	_peak_mass = maxf(_peak_mass, total)
 
 
 # ── 初始化 ───────────────────────────────────────────────
@@ -104,7 +115,7 @@ func _on_game_start(player_name: String, two_player: bool, color: Color = Color(
 	_start_time = Time.get_ticks_msec() / 1000.0
 	_peak_mass = 0.0
 
-	if multiplayer.has_multiplayer_peer():
+	if not NetworkManager.players.is_empty():
 		NetworkManager.local_player_info["color"] = color
 		_spawn_online_players(player_name)
 	else:
@@ -117,7 +128,6 @@ func _on_game_start(player_name: String, two_player: bool, color: Color = Color(
 
 
 func _spawn_online_players(player_name: String) -> void:
-	# 为每个已连接玩家（含自己）生成 NetworkedBall
 	var my_id := multiplayer.get_unique_id()
 	for pid in NetworkManager.players:
 		var info: Dictionary = NetworkManager.players[pid]
@@ -132,10 +142,9 @@ func _spawn_online_players(player_name: String) -> void:
 		nb.add_to_group("balls")
 		ball_container.add_child(nb)
 		if pid == my_id:
-			player = nb  # 把本地 NetworkedBall 当 player 对待
+			player = nb
 			player.got_eaten.connect(_on_player_died)
 
-	# 监听后续玩家加入/离开
 	NetworkManager.player_connected.connect(_on_network_player_connected)
 	NetworkManager.player_disconnected.connect(_on_network_player_disconnected)
 	NetworkManager.server_disconnected.connect(_on_server_dc)
@@ -159,21 +168,29 @@ func _on_network_player_disconnected(pid: int) -> void:
 
 
 func _on_server_dc() -> void:
-	# 断线回主菜单
 	for b in ball_container.get_children():
 		b.queue_free()
 	_show_main_menu()
 
 
 func _spawn_player(player_name: String = "Player", color: Color = Color(0.2, 0.6, 1.0)) -> void:
-	player = PlayerScene.instantiate()
-	player.ball_name = player_name
-	player.ball_color = color
-	player.add_to_group("balls")
-	player.got_eaten.connect(_on_player_died)
-	ball_container.add_child(player)
-	# add_child 之后再设置 global_position，确保节点已在场景树中
-	player.global_position = WORLD_SIZE / 2.0 + Vector2(-200, 0)
+	player_cells.clear()
+	var cell: Player = PlayerScene.instantiate()
+	cell.ball_name = player_name
+	cell.ball_color = color
+	cell.add_to_group("balls")
+	_connect_cell(cell)
+	ball_container.add_child(cell)
+	cell.global_position = WORLD_SIZE / 2.0 + Vector2(-200, 0)
+	cell._apply_mass(PI * 20.0 * 20.0)
+	# 出生保护 3 秒：防止刚出生就被大球吃掉
+	cell.is_invincible = true
+	get_tree().create_timer(3.0).timeout.connect(func():
+		if is_instance_valid(cell):
+			cell.is_invincible = false
+	)
+	player = cell
+	player_cells.append(cell)
 
 
 func _spawn_player2() -> void:
@@ -182,6 +199,96 @@ func _spawn_player2() -> void:
 	player2.got_eaten.connect(_on_player2_died)
 	ball_container.add_child(player2)
 	player2.global_position = WORLD_SIZE / 2.0 + Vector2(200, 0)
+
+
+# ── 分裂 ──────────────────────────────────────────────
+
+func _connect_cell(cell: Player) -> void:
+	cell.got_eaten.connect(_on_cell_died.bind(cell))
+	cell.split_requested.connect(_on_split_requested)
+
+
+func _on_split_requested() -> void:
+	if player_cells.size() >= MAX_PLAYER_CELLS:
+		return
+	for cell in player_cells.duplicate():
+		if player_cells.size() >= MAX_PLAYER_CELLS:
+			break
+		if not is_instance_valid(cell):
+			continue
+		var p_cell := cell as Player
+		if p_cell == null or p_cell.radius < Player.MIN_SPLIT_RADIUS:
+			continue
+		_split_cell(p_cell)
+
+
+func _split_cell(cell: Player) -> void:
+	var half_mass := cell.mass / 2.0
+	cell._apply_mass(half_mass)
+	cell.merge_timer = Player.MERGE_DELAY
+
+	var new_cell: Player = PlayerScene.instantiate()
+	new_cell.ball_name = cell.ball_name
+	new_cell.ball_color = cell.ball_color
+	new_cell.add_to_group("balls")
+	_connect_cell(new_cell)
+	ball_container.add_child(new_cell)
+	new_cell.global_position = cell.global_position
+	new_cell._apply_mass(half_mass)
+	new_cell.launch_velocity = cell.last_move_dir * Player.LAUNCH_SPEED
+	new_cell.merge_timer = Player.MERGE_DELAY
+
+	player_cells.append(new_cell)
+	_update_camera_targets()
+
+
+# ── 合并 ──────────────────────────────────────────────
+
+func _check_player_merges() -> void:
+	player_cells = player_cells.filter(func(c): return is_instance_valid(c))
+	if player_cells.size() < 2:
+		return
+	for i in player_cells.size():
+		for j in range(i + 1, player_cells.size()):
+			var c1 := player_cells[i] as Player
+			var c2 := player_cells[j] as Player
+			if c1 == null or c2 == null:
+				continue
+			if not c1.can_merge_with(c2):
+				continue
+			var dist := c1.global_position.distance_to(c2.global_position)
+			if dist < c1.radius or dist < c2.radius:
+				_merge_cells(c1, c2)
+				return
+
+
+func _merge_cells(c1: Player, c2: Player) -> void:
+	var bigger  := c1 if c1.mass >= c2.mass else c2
+	var smaller := c2 if c1.mass >= c2.mass else c1
+	bigger._apply_mass(bigger.mass + smaller.mass)
+	player_cells.erase(smaller)
+	smaller.queue_free()
+	if is_instance_valid(player_cells[0] if not player_cells.is_empty() else null):
+		player = player_cells[0]
+	_update_camera_targets()
+
+
+# ── 摄像机 ────────────────────────────────────────────
+
+func _update_camera_targets() -> void:
+	if not is_instance_valid(camera):
+		return
+	var valid: Array[Ball] = []
+	for c in player_cells:
+		if is_instance_valid(c):
+			valid.append(c)
+	if valid.is_empty():
+		return
+	camera.target = valid[0]
+	if valid.size() >= 2:
+		camera.targets = valid
+	else:
+		camera.targets.clear()
 
 
 func _setup_camera() -> void:
@@ -194,11 +301,9 @@ func _setup_camera() -> void:
 		add_child(camera)
 		camera.make_current()
 
-	camera.target = player
+	_update_camera_targets()
 	if _two_player and is_instance_valid(player2):
 		camera.targets = [player, player2]
-	else:
-		camera.targets = []
 	if is_instance_valid(player):
 		camera.global_position = player.global_position
 
@@ -210,26 +315,44 @@ func _setup_hud() -> void:
 	hud = HUD.new()
 	hud.player_ref = player
 	add_child(hud)
+	# 暂停菜单（每局只创建一次）
+	if not get_tree().current_scene.has_node("PauseMenu"):
+		var pause_menu := PauseMenu.new()
+		pause_menu.name = "PauseMenu"
+		add_child(pause_menu)
 
 
 # ── 死亡处理 ───────────────────────────────────────────
 
-func _on_player_died(_by: Ball) -> void:
+func _on_cell_died(_by: Ball, dead_cell: Ball) -> void:
+	player_cells.erase(dead_cell)
+	player_cells = player_cells.filter(func(c): return is_instance_valid(c))
+	if player_cells.is_empty():
+		_trigger_death()
+	else:
+		player = player_cells[0]
+		_update_camera_targets()
+		if is_instance_valid(hud):
+			hud.player_ref = player
+
+
+func _trigger_death() -> void:
 	var survived := Time.get_ticks_msec() / 1000.0 - _start_time
 	var rank := _calc_rank()
-
 	if is_instance_valid(hud):
 		hud.queue_free()
 		hud = null
-
 	var ds := DeathScreen.new()
 	add_child(ds)
 	ds.show_result(survived, _peak_mass, rank)
 	ds.respawn.connect(_on_respawn)
 
 
+func _on_player_died(_by: Ball) -> void:
+	_trigger_death()
+
+
 func _on_player2_died(_by: Ball) -> void:
-	# P2 死亡后不弹出结算，只从摄像机目标列表移除
 	if is_instance_valid(camera):
 		camera.targets = camera.targets.filter(func(b): return is_instance_valid(b))
 		if camera.targets.is_empty():

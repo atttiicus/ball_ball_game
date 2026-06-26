@@ -93,6 +93,14 @@ func _build_ui() -> void:
 	btn3.pressed.connect(_on_online_pressed)
 	vbox.add_child(btn3)
 
+	_add_spacer(vbox, 16)
+
+	var quit_btn := Button.new()
+	quit_btn.text = "退出游戏"
+	quit_btn.custom_minimum_size = Vector2(0, 40)
+	quit_btn.pressed.connect(func(): get_tree().quit())
+	vbox.add_child(quit_btn)
+
 	_name_input.text_submitted.connect(func(_t): _emit_start(false))
 
 
@@ -101,8 +109,8 @@ func _on_online_pressed() -> void:
 	# 将 lobby 挂到同一层，主菜单先隐藏
 	get_parent().add_child(lobby)
 	lobby.back_to_menu.connect(func(): show())
-	lobby.start_online.connect(func(pname, is_host, addr):
-		emit_signal("start_game", pname, false)  # 联网模式走单人通道，由 Main 判断网络状态
+	lobby.start_online.connect(func(pname, _is_host, _addr):
+		emit_signal("start_game", pname, false, _selected_color)
 	)
 	hide()
 

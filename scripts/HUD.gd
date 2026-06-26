@@ -1,7 +1,7 @@
 class_name HUD
 extends CanvasLayer
 
-var player_ref: Player = null
+var player_ref: Ball = null
 
 var _mass_label: Label
 var _leaderboard: VBoxContainer
@@ -26,6 +26,22 @@ func _build_ui() -> void:
 	_mass_label.add_theme_constant_override("shadow_offset_x", 1)
 	_mass_label.add_theme_constant_override("shadow_offset_y", 1)
 	add_child(_mass_label)
+
+	# 左上角：操作提示
+	var hints_panel := PanelContainer.new()
+	hints_panel.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
+	hints_panel.position = Vector2(10, 10)
+	add_child(hints_panel)
+
+	var hints_vbox := VBoxContainer.new()
+	hints_panel.add_child(hints_vbox)
+
+	for line in ["WASD  移动", "空格  分裂", "ESC   暂停"]:
+		var lbl := Label.new()
+		lbl.text = line
+		lbl.add_theme_font_size_override("font_size", 13)
+		lbl.add_theme_color_override("font_color", Color(0.9, 0.9, 0.9))
+		hints_vbox.add_child(lbl)
 
 	# 右上角：排行榜
 	var lb_panel := PanelContainer.new()
@@ -58,14 +74,21 @@ func _process(_delta: float) -> void:
 	_update_mass_label()
 	_update_leaderboard()
 	if _minimap and _minimap.has_method("refresh"):
-		_minimap.call("refresh", player_ref)
+		var ref := player_ref if is_instance_valid(player_ref) else null
+		_minimap.call("refresh", ref)
 
 
 func _update_mass_label() -> void:
-	if is_instance_valid(player_ref):
-		_mass_label.text = "质量：%d" % int(player_ref.mass)
-	else:
+	# 累加所有分裂块的总质量
+	var cells := get_tree().get_nodes_in_group("player_cells")
+	if cells.is_empty():
 		_mass_label.text = ""
+		return
+	var total := 0.0
+	for c in cells:
+		if is_instance_valid(c):
+			total += (c as Ball).mass
+	_mass_label.text = "质量：%d" % int(total)
 
 
 func _update_leaderboard() -> void:
