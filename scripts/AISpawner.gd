@@ -1,10 +1,9 @@
 class_name AISpawner
 extends Node
 
-const MAX_AI := 20
 const AIBallScene := preload("res://scenes/AIBall.tscn")
 
-var world_size: Vector2 = Vector2(4000.0, 4000.0)
+var world_size: Vector2 = GameConfig.WORLD_SIZE
 var container: Node2D
 
 
@@ -13,13 +12,12 @@ func _ready() -> void:
 
 
 func _process(_delta: float) -> void:
-	var current := container.get_child_count()
-	if current < MAX_AI:
+	if container.get_child_count() < GameConfig.AI_COUNT:
 		_spawn_one()
 
 
 func _fill_ai() -> void:
-	for i in MAX_AI:
+	for i in GameConfig.AI_COUNT:
 		_spawn_one()
 
 

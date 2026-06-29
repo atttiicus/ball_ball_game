@@ -17,6 +17,7 @@ config/icon="res://icon.svg"
 
 [autoload]
 
+GameConfig="*res://scripts/GameConfig.gd"
 NetworkManager="*res://scripts/NetworkManager.gd"
 SoundManager="*res://scripts/SoundManager.gd"
 SaveManager="*res://scripts/SaveManager.gd"

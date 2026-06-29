@@ -24,10 +24,11 @@ var visual_scale: float = 1.0:
 		visual_scale = v
 		queue_redraw()
 
-const MIN_RADIUS := 15.0
-const MAX_RADIUS := 400.0
-const EAT_RATIO := 1.1
-const WORLD_SIZE := Vector2(4000.0, 4000.0)
+# 以下常量从 GameConfig autoload 读取，此处保留别名方便子类直接使用
+var MIN_RADIUS: float  = GameConfig.BALL_MIN_RADIUS
+var MAX_RADIUS: float  = GameConfig.BALL_MAX_RADIUS
+var EAT_RATIO: float   = GameConfig.EAT_RATIO
+var WORLD_SIZE: Vector2 = GameConfig.WORLD_SIZE
 
 
 func _ready() -> void:
@@ -140,8 +141,7 @@ func add_mass(amount: float) -> void:
 
 
 func get_speed() -> float:
-	# 速度与半径成反比：半径越小速度越快，分裂后速度提升约 40%
-	return clampf(4000.0 / radius, 70.0, 280.0)
+	return clampf(GameConfig.SPEED_MULT / radius, GameConfig.SPEED_MIN, GameConfig.SPEED_MAX)
 
 
 func can_eat(other: Ball) -> bool:

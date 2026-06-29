@@ -12,20 +12,13 @@ var _state_timer: float = 0.0
 var group_leader: AIBall = null
 var merge_timer: float = 0.0
 
-const AI_MERGE_DELAY    := 12.0   # 分裂后多少秒才能合并
-const AI_MIN_SPLIT_RADIUS := 28.0  # 最小分裂半径
-
 # 分裂后的惯性飞出
 var launch_velocity: Vector2 = Vector2.ZERO
-const LAUNCH_SPEED  := 380.0
-const LAUNCH_DECEL  := 3.5
 
-# ── 战术分裂计时 ─────────────────────────────────────
-var _flee_timer: float = 0.0  # 持续逃跑时长
-var _hunt_timer: float = 0.0  # 持续追逐时长
-var _split_used: bool = false  # 每轮 flee/hunt 只分裂一次
-
-const STATE_INTERVAL := 0.4
+# 战术分裂计时
+var _flee_timer: float = 0.0
+var _hunt_timer: float = 0.0
+var _split_used: bool = false
 
 static var AI_NAMES := [
 	"Slime", "Blob", "Goo", "Orb", "Zap", "Nyx", "Pix", "Rex",
@@ -56,14 +49,14 @@ func _physics_process(delta: float) -> void:
 	# ── 惯性飞出阶段 ──────────────────────────────────
 	if launch_velocity.length() > 10.0:
 		move_and_collide(launch_velocity * delta)
-		launch_velocity = launch_velocity.lerp(Vector2.ZERO, LAUNCH_DECEL * delta)
+		launch_velocity = launch_velocity.lerp(Vector2.ZERO, GameConfig.AI_SPLIT_LAUNCH_DECEL * delta)
 		clamp_to_world()
 		merge_timer = maxf(0.0, merge_timer - delta)
 		return
 
 	# ── 合并检查（从属球）─────────────────────────────
 	merge_timer = maxf(0.0, merge_timer - delta)
-	if group_leader != null and merge_timer <= 0.0:
+	if group_leader != null and merge_timer <= 0.0 and is_instance_valid(group_leader):
 		var dist: float = global_position.distance_to(group_leader.global_position)
 		if dist < group_leader.radius:
 			_merge_into(group_leader)
@@ -79,7 +72,7 @@ func _physics_process(delta: float) -> void:
 
 	# ── 领导球逻辑 ────────────────────────────────────
 	_state_timer += delta
-	if _state_timer >= STATE_INTERVAL:
+	if _state_timer >= GameConfig.AI_STATE_INTERVAL:
 		_state_timer = 0.0
 		_evaluate_state()
 
@@ -97,13 +90,11 @@ func _physics_process(delta: float) -> void:
 			_split_used  = false  # 切回游荡时重置标志，允许下次再分裂
 
 	# 战术分裂判断
-	if not _split_used and radius >= AI_MIN_SPLIT_RADIUS:
+	if not _split_used and radius >= GameConfig.AI_MIN_SPLIT_RADIUS:
 		var should_split := false
-		# 逃跑超过 2.5 秒还没甩掉威胁 → 分裂加速逃脱
-		if state == State.FLEE and _flee_timer >= 2.5:
+		if state == State.FLEE and _flee_timer >= GameConfig.AI_FLEE_SPLIT_TIME:
 			should_split = true
-		# 追逐超过 5.5 秒还没吃到猎物 → 分裂一块飞出拦截
-		elif state == State.HUNT and _hunt_timer >= 5.5:
+		elif state == State.HUNT and _hunt_timer >= GameConfig.AI_HUNT_SPLIT_TIME:
 			should_split = true
 		if should_split:
 			_split_used = true
@@ -147,15 +138,14 @@ func _evaluate_state() -> void:
 
 
 func _do_ai_split() -> void:
-	if radius < AI_MIN_SPLIT_RADIUS:
+	if radius < GameConfig.AI_MIN_SPLIT_RADIUS:
 		return
 	var half_mass := mass / 2.0
 	_apply_mass(half_mass)
 
 	var new_ai := AIBall.new()
-	# 从属球的领导球：若我是从属球则指向同一领导，否则指向我自己
 	new_ai.group_leader  = group_leader if is_instance_valid(group_leader) else self
-	new_ai.merge_timer   = AI_MERGE_DELAY
+	new_ai.merge_timer   = GameConfig.AI_MERGE_DELAY
 	new_ai.ball_color    = ball_color
 	new_ai.ball_name     = ball_name
 	new_ai.add_to_group("balls")
@@ -166,7 +156,7 @@ func _do_ai_split() -> void:
 	# 分裂方向：朝当前目标射出
 	var dir := (_target_pos - global_position).normalized() \
 		if (_target_pos - global_position).length() > 10.0 else Vector2.RIGHT
-	new_ai.launch_velocity = dir * LAUNCH_SPEED
+	new_ai.launch_velocity = dir * GameConfig.AI_SPLIT_LAUNCH_SPEED
 	new_ai.play_spawn_anim()
 	play_pulse_anim()
 

@@ -1,11 +1,7 @@
 class_name FoodSpawner
 extends Node
 
-const MAX_FOOD := 500
-const SPAWN_BATCH := 20       # 每次补充数量
-const SPAWN_INTERVAL := 0.5  # 秒
-
-var world_size: Vector2 = Vector2(4000.0, 4000.0)
+var world_size: Vector2 = GameConfig.WORLD_SIZE
 var container: Node2D
 
 static var FOOD_COLORS := [
@@ -21,17 +17,16 @@ var _timer: float = 0.0
 
 
 func _ready() -> void:
-	# 初始填满
-	_spawn_batch(MAX_FOOD)
+	_spawn_batch(GameConfig.FOOD_MAX_COUNT)
 
 
 func _process(delta: float) -> void:
 	_timer += delta
-	if _timer >= SPAWN_INTERVAL:
+	if _timer >= GameConfig.FOOD_SPAWN_INTERVAL:
 		_timer = 0.0
 		var current := container.get_child_count() if container else 0
-		if current < MAX_FOOD:
-			_spawn_batch(min(SPAWN_BATCH, MAX_FOOD - current))
+		if current < GameConfig.FOOD_MAX_COUNT:
+			_spawn_batch(min(GameConfig.FOOD_SPAWN_BATCH, GameConfig.FOOD_MAX_COUNT - current))
 
 
 func _spawn_batch(count: int) -> void:

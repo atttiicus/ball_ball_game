@@ -1,7 +1,6 @@
 class_name Minimap
 extends Control
 
-const WORLD_SIZE := Vector2(4000.0, 4000.0)
 const BG_COLOR := Color(0.1, 0.1, 0.15, 0.8)
 const BORDER_COLOR := Color(0.5, 0.5, 0.7)
 const FOOD_COLOR := Color(0.5, 0.9, 0.5, 0.6)
@@ -37,6 +36,6 @@ func _draw() -> void:
 
 func _world_to_map(world_pos: Vector2, map_sz: Vector2) -> Vector2:
 	return Vector2(
-		world_pos.x / WORLD_SIZE.x * map_sz.x,
-		world_pos.y / WORLD_SIZE.y * map_sz.y
+		world_pos.x / GameConfig.WORLD_SIZE.x * map_sz.x,
+		world_pos.y / GameConfig.WORLD_SIZE.y * map_sz.y
 	)

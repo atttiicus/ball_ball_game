@@ -10,18 +10,12 @@ var last_move_dir: Vector2 = Vector2.RIGHT
 var launch_velocity: Vector2 = Vector2.ZERO
 var merge_timer: float = 0.0
 
-const LAUNCH_SPEED := 500.0
-const LAUNCH_DECEL := 3.5
-const MIN_SPLIT_RADIUS := 25.0
-const MERGE_DELAY := 15.0
-
-
 func _ready() -> void:
 	if ball_color == Color.WHITE:
 		ball_color = Color(0.2, 0.6, 1.0)
 	if ball_name.is_empty():
 		ball_name = "Player"
-	mass = PI * 20.0 * 20.0
+	mass = PI * GameConfig.PLAYER_SPAWN_RADIUS * GameConfig.PLAYER_SPAWN_RADIUS
 	super._ready()
 	got_eaten.connect(_on_got_eaten)
 	# 炸弹强制分裂：复用 split_requested 通道，Main 统一处理
@@ -42,13 +36,13 @@ func _physics_process(delta: float) -> void:
 	if is_dead:
 		return
 
-	if Input.is_action_just_pressed("split") and radius >= MIN_SPLIT_RADIUS:
+	if Input.is_action_just_pressed("split") and radius >= GameConfig.PLAYER_MIN_SPLIT_RADIUS:
 		emit_signal("split_requested")
 
 	# 分裂后的惯性飞出阶段
 	if launch_velocity.length() > 10.0:
 		move_and_collide(launch_velocity * delta)
-		launch_velocity = launch_velocity.lerp(Vector2.ZERO, LAUNCH_DECEL * delta)
+		launch_velocity = launch_velocity.lerp(Vector2.ZERO, GameConfig.PLAYER_SPLIT_LAUNCH_DECEL * delta)
 		clamp_to_world()
 		merge_timer = maxf(0.0, merge_timer - delta)
 		return

@@ -1,9 +1,5 @@
 extends Node2D
 
-const WORLD_SIZE := Vector2(4000.0, 4000.0)
-const WALL_THICKNESS := 50.0
-const MAX_PLAYER_CELLS := 4
-
 const PlayerScene        := preload("res://scenes/Player.tscn")
 const Player2Scene       := preload("res://scenes/Player2.tscn")
 const NetworkedBallScene := preload("res://scenes/NetworkedBall.tscn")
@@ -63,10 +59,10 @@ func _physics_process(delta: float) -> void:
 
 func _build_world_border() -> void:
 	var walls := [
-		[Vector2(WORLD_SIZE.x / 2, -WALL_THICKNESS / 2),               Vector2(WORLD_SIZE.x + WALL_THICKNESS * 2, WALL_THICKNESS)],
-		[Vector2(WORLD_SIZE.x / 2, WORLD_SIZE.y + WALL_THICKNESS / 2),  Vector2(WORLD_SIZE.x + WALL_THICKNESS * 2, WALL_THICKNESS)],
-		[Vector2(-WALL_THICKNESS / 2, WORLD_SIZE.y / 2),                Vector2(WALL_THICKNESS, WORLD_SIZE.y)],
-		[Vector2(WORLD_SIZE.x + WALL_THICKNESS / 2, WORLD_SIZE.y / 2),  Vector2(WALL_THICKNESS, WORLD_SIZE.y)],
+		[Vector2(GameConfig.WORLD_SIZE.x / 2, -GameConfig.WALL_THICKNESS / 2),               Vector2(GameConfig.WORLD_SIZE.x + GameConfig.WALL_THICKNESS * 2, GameConfig.WALL_THICKNESS)],
+		[Vector2(GameConfig.WORLD_SIZE.x / 2, GameConfig.WORLD_SIZE.y + GameConfig.WALL_THICKNESS / 2),  Vector2(GameConfig.WORLD_SIZE.x + GameConfig.WALL_THICKNESS * 2, GameConfig.WALL_THICKNESS)],
+		[Vector2(-GameConfig.WALL_THICKNESS / 2, GameConfig.WORLD_SIZE.y / 2),                Vector2(GameConfig.WALL_THICKNESS, GameConfig.WORLD_SIZE.y)],
+		[Vector2(GameConfig.WORLD_SIZE.x + GameConfig.WALL_THICKNESS / 2, GameConfig.WORLD_SIZE.y / 2),  Vector2(GameConfig.WALL_THICKNESS, GameConfig.WORLD_SIZE.y)],
 	]
 	for wall_data in walls:
 		var body := StaticBody2D.new()
@@ -83,33 +79,31 @@ func _build_world_border() -> void:
 
 func _setup_background() -> void:
 	var bg := BackgroundGrid.new()
-	bg.world_size = WORLD_SIZE
+	bg.world_size = GameConfig.WORLD_SIZE
 	background.add_child(bg)
 
 
 func _setup_food_spawner() -> void:
 	food_spawner = FoodSpawner.new()
-	food_spawner.world_size = WORLD_SIZE
+	food_spawner.world_size = GameConfig.WORLD_SIZE
 	food_spawner.container = food_container
 	add_child(food_spawner)
 
 
 func _setup_ai_spawner() -> void:
 	ai_spawner = AISpawner.new()
-	ai_spawner.world_size = WORLD_SIZE
+	ai_spawner.world_size = GameConfig.WORLD_SIZE
 	ai_spawner.container = ball_container
 	add_child(ai_spawner)
 
 
 func _spawn_bombs() -> void:
-	const BOMB_COUNT := 8
-	# 炸弹放在远离世界边缘的区域，均匀散布
-	for i in BOMB_COUNT:
+	for i in GameConfig.BOMB_COUNT:
 		var bomb := Bomb.new()
 		var margin := 200.0
 		bomb.position = Vector2(
-			randf_range(margin, WORLD_SIZE.x - margin),
-			randf_range(margin, WORLD_SIZE.y - margin)
+			randf_range(margin, GameConfig.WORLD_SIZE.x - margin),
+			randf_range(margin, GameConfig.WORLD_SIZE.y - margin)
 		)
 		effects_container.add_child(bomb)
 
@@ -146,8 +140,8 @@ func _spawn_online_players(player_name: String) -> void:
 		nb.ball_name = info.get("name", "Player")
 		nb.ball_color = info.get("color", Color(0.5, 0.5, 1.0))
 		nb.global_position = Vector2(
-			randf_range(200, WORLD_SIZE.x - 200),
-			randf_range(200, WORLD_SIZE.y - 200)
+			randf_range(200, GameConfig.WORLD_SIZE.x - 200),
+			randf_range(200, GameConfig.WORLD_SIZE.y - 200)
 		)
 		nb.add_to_group("balls")
 		ball_container.add_child(nb)
@@ -165,7 +159,7 @@ func _on_network_player_connected(pid: int, info: Dictionary) -> void:
 	nb.peer_id = pid
 	nb.ball_name = info.get("name", "Player")
 	nb.ball_color = info.get("color", Color(0.5, 0.5, 1.0))
-	nb.global_position = Vector2(randf_range(200, WORLD_SIZE.x - 200), randf_range(200, WORLD_SIZE.y - 200))
+	nb.global_position = Vector2(randf_range(200, GameConfig.WORLD_SIZE.x - 200), randf_range(200, GameConfig.WORLD_SIZE.y - 200))
 	nb.add_to_group("balls")
 	ball_container.add_child(nb)
 
@@ -191,12 +185,12 @@ func _spawn_player(player_name: String = "Player", color: Color = Color(0.2, 0.6
 	cell.add_to_group("balls")
 	_connect_cell(cell)
 	ball_container.add_child(cell)
-	cell.global_position = WORLD_SIZE / 2.0 + Vector2(-200, 0)
-	cell._apply_mass(PI * 20.0 * 20.0)
+	cell.global_position = GameConfig.WORLD_SIZE / 2.0 + Vector2(-200, 0)
+	cell._apply_mass(PI * GameConfig.PLAYER_SPAWN_RADIUS * GameConfig.PLAYER_SPAWN_RADIUS)
 	cell.play_spawn_anim()
 	# 出生保护 3 秒：防止刚出生就被大球吃掉
 	cell.is_invincible = true
-	get_tree().create_timer(3.0).timeout.connect(func():
+	get_tree().create_timer(GameConfig.PLAYER_SPAWN_INVINCIBLE_TIME).timeout.connect(func():
 		if is_instance_valid(cell):
 			cell.is_invincible = false
 	)
@@ -212,15 +206,15 @@ func _connect_cell(cell: Player) -> void:
 
 
 func _on_split_requested() -> void:
-	if player_cells.size() >= MAX_PLAYER_CELLS:
+	if player_cells.size() >= GameConfig.PLAYER_MAX_CELLS:
 		return
 	for cell in player_cells.duplicate():
-		if player_cells.size() >= MAX_PLAYER_CELLS:
+		if player_cells.size() >= GameConfig.PLAYER_MAX_CELLS:
 			break
 		if not is_instance_valid(cell):
 			continue
 		var p_cell := cell as Player
-		if p_cell == null or p_cell.radius < Player.MIN_SPLIT_RADIUS:
+		if p_cell == null or p_cell.radius < GameConfig.PLAYER_MIN_SPLIT_RADIUS:
 			continue
 		_split_cell(p_cell)
 
@@ -228,9 +222,9 @@ func _on_split_requested() -> void:
 func _split_cell(cell: Player) -> void:
 	var half_mass := cell.mass / 2.0
 	cell._apply_mass(half_mass)
-	cell.merge_timer = Player.MERGE_DELAY
+	cell.merge_timer = GameConfig.PLAYER_MERGE_DELAY
 	# 原始球也获得少量前向推力，让速度变化立即可感知
-	cell.launch_velocity = cell.last_move_dir * Player.LAUNCH_SPEED * 0.25
+	cell.launch_velocity = cell.last_move_dir * GameConfig.PLAYER_SPLIT_LAUNCH_SPEED * 0.25
 
 	var new_cell: Player = PlayerScene.instantiate()
 	new_cell.ball_name = cell.ball_name
@@ -240,8 +234,8 @@ func _split_cell(cell: Player) -> void:
 	ball_container.add_child(new_cell)
 	new_cell.global_position = cell.global_position
 	new_cell._apply_mass(half_mass)
-	new_cell.launch_velocity = cell.last_move_dir * Player.LAUNCH_SPEED
-	new_cell.merge_timer = Player.MERGE_DELAY
+	new_cell.launch_velocity = cell.last_move_dir * GameConfig.PLAYER_SPLIT_LAUNCH_SPEED
+	new_cell.merge_timer = GameConfig.PLAYER_MERGE_DELAY
 	new_cell.play_spawn_anim()  # 新分裂块弹入
 	cell.play_pulse_anim()      # 原始块脉冲反馈
 
@@ -303,8 +297,8 @@ func _setup_camera() -> void:
 		camera = GameCamera.new()
 		camera.limit_left = 0
 		camera.limit_top = 0
-		camera.limit_right = int(WORLD_SIZE.x)
-		camera.limit_bottom = int(WORLD_SIZE.y)
+		camera.limit_right = int(GameConfig.WORLD_SIZE.x)
+		camera.limit_bottom = int(GameConfig.WORLD_SIZE.y)
 		add_child(camera)
 		camera.make_current()
 
